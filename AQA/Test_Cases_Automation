@@ -1,0 +1,115 @@
+1)
+Feature: KZ_SOLVA_CRM_UI_000014
+MmApplicationGroup:
+ManualExecutionMinutes: 3
+Owner: Chirvinski Yan
+Status: TEST_CASE_READY
+TestLevel: SMOKE
+
+Scenario: [UI] [CRM] Loan: Verify credit bureau report display (FCB)
+  Given: Use following CRM roles:
+         Administrator and Verifier
+  When: Login to CRM with {role}
+  And: Get credit ID {cr.id} in DB:
+    ``
+      SELECT max(cr.id)
+      FROM credit cr
+      WHERE cr.status IN ('ACTIVE', 'PROCESSING')
+    ``
+  And: Get value monthly installments owner {mon_inst_owner} in DB:
+   ``
+     SELECT monthly_instalments_owner
+     FROM fcb_summary
+     WHERE credit_id={cr.id}
+   ``
+  When: Go to https://[<env-domain>secure/new-admin/index.html#/loans/loan/{cr.id}]
+  And: Verify the credit.id {cr.id} is displayed on the loan page
+  When: Click 'Отчеты ПКБ' link in 'Риски' block
+  And: Pop-up 'Отчеты ПКБ' appeared
+  When: Click 'Платежеспособность' link
+  Then: Value in 'Сумма ежемеячного взноса по действующим договорам' field match {mon_inst_owner}
+
+
+Feature: KZ_SOLVA_CRM_UI_000056
+MmApplicationGroup:
+ManualExecutionMinutes: 3
+Owner: Yan Chirvinski, Maryna Kirzner
+Status: TEST_CASE_READY
+TestLevel: SMOKE
+
+
+
+
+2)
+Scenario: [UI] [CRM] Debtors: verify change status
+   Given: Parameters:
+   - Dropdown 'Новый' value {NEW}
+   - Dropdown 'Пре-коллекшн' value {PRECOLLECT}
+   - Dropdown 'Отправлено в коллекшн' value {SENT_TO_COLLECTION}
+   - Dropdown 'Отправлено коллекторам' value {SENT_TO_COLLECTOR}
+   - Dropdown 'Погашен' value {DONE}
+   And: Get credit ID {cr.id} and status {cc.status} in DB:
+    ``
+    SELECT c.id, cc.status
+    FROM borrower b
+    JOIN credit c ON b.id = c.borrower_id
+    JOIN collector_credit cc ON c.id = cc.credit_id
+    JOIN user_account ua ON user_account_id = ua.id
+    WHERE cc.status = 'SENT_TO_COURT'
+    AND email LIKE 'automationslkz%' LIMIT 1
+    ``
+   When: Login to CRM with admin
+   And: Go to https://[<env-domain>/secure/new-admin/index.html#/debtors]
+   And: Debtors page loaded
+   When: Input {cr.id} in 'Заем' field
+   And: Select value "Отправлено в суд" in the 'Статус' dropdown
+   And: Click 'Поиск' button
+   And: Entry appears with creditID = {cr.id}
+   When: Select the checkbox to the left of credit ID
+   And: Choose value '{parameters}' in dropdown 'Статус' bellow
+   And: Click 'Изменить' link
+   Then: Pop-up 'Успешно' appeared
+   And: Verify value in DB update to '{parameters}'
+    ``
+    SELECT status
+    FROM collector_credit
+    WHERE credit_id = c.id
+    ORDER BY id DESC LIMIT 1
+    ``
+    And: Return credit status
+    
+    Feature: KZ_SOLVA_CRM_UI_000043
+MmApplicationGroup:
+ManualExecutionMinutes: 3
+Owner: Chirvinski Yan, Maryna Kirzner
+Status: TEST_CASE_READY
+TestLevel: SMOKE
+
+
+
+3)
+Scenario: [UI] [CRM] Borrower: Verify delete file from scan identity field
+  Given: Use following CRM roles:
+         Administrator and Verifier
+   And: Get borrower {br.id} with uploaded file and fie ID {file.id} of borrowers files in DB by email:
+   ``
+    SELECT br.id, MIN(bf.id) AS file_id
+    FROM borrower br
+    JOIN user_account us ON br.user_account_id = us.id
+    RIGHT JOIN borrower_files bf ON br.id = bf.borrower_id
+    WHERE us.email LIKE "automation%"
+    GROUP BY 1
+    ORDER BY RAND();
+   ``
+   When: Login to CRM with {role}
+   And: Go to https://[<env-domain>/secure/new-admin/index.html#/loans/borrower/{br.id}]
+   And: The borrower ID is displayed on the page
+   When: Click 'Показать' link in 'Скан удостоверения' field
+   And: Pop-up appeared with the name of the document
+   When: Click 'Удалить' link in pop-up
+   Then: Verify that entry with uploaded file has been deleted (expect 0 entries)
+   ``
+    SELECT *
+    FROM borrower_files
+    WHERE id = {file_id}
+   ``
